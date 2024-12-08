@@ -1,6 +1,7 @@
 from binance import Client
+from decimal import Decimal
 import os
-import math
+
 
 API_KEY = os.getenv('API_KEY')
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -14,18 +15,19 @@ class BinanceTrade:
     def __init__(self, client):
         self.client = client
 
-    # def get_coin_price(self, traded_pair: str):
-    #     result = self.client.get_symbol_ticker(symbol=traded_pair)
-    #     return result['price']
+
+    def remove_extra_decimals(self, number: str):
+        
+        return format(float(number), ".2f") if float(number) > 1 else number
 
     def get_traded_pair_info(self, traded_pair: str):
         result = client.get_ticker(symbol=traded_pair)
         data = {
-            'lastPrice': result['lastPrice'],
+            'lastPrice': self.remove_extra_decimals(result['lastPrice']),
             'priceChange': result['priceChange'],
             'priceChangePercent': result['priceChangePercent'],
-            'highPrice': result['highPrice'],
-            'lowPrice': result['lowPrice'],
+            'highPrice': self.remove_extra_decimals(result['highPrice']),
+            'lowPrice': self.remove_extra_decimals(result['lowPrice']),
             'baseVolume': result['volume'],
             'quoteVolume': result['quoteVolume']
             }
