@@ -9,31 +9,31 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 client = Client(API_KEY, SECRET_KEY)
 
 
-# trades = client.get_order_book(symbol='BTCUSDT', limit=100)
-
 class BinanceTrade:
-    def __init__(self, client):
+    def __init__(self, client: Client):
         self.client = client
 
-
-    def remove_extra_decimals(self, number: str):
-        
-        return format(float(number), ".2f") if float(number) > 1 else number
-
     def get_traded_pair_info(self, traded_pair: str):
-        result = client.get_ticker(symbol=traded_pair)
+        result = self.client.get_ticker(symbol=traded_pair)
         data = {
-            'lastPrice': self.remove_extra_decimals(result['lastPrice']),
+            'lastPrice': result['lastPrice'],
             'priceChange': result['priceChange'],
             'priceChangePercent': result['priceChangePercent'],
-            'highPrice': self.remove_extra_decimals(result['highPrice']),
-            'lowPrice': self.remove_extra_decimals(result['lowPrice']),
+            'highPrice': result['highPrice'],
+            'lowPrice': result['lowPrice'],
             'baseVolume': result['volume'],
             'quoteVolume': result['quoteVolume']
-            }
+        }
         return data
+
     def get_recent_trades(self, trade_pair: str):
-        result = client.get_recent_trades(symbol=trade_pair, limit=10)
+        result = self.client.get_recent_trades(symbol=trade_pair, limit=10)
+        for trade in result:
+            trade.update({'price': self.format_num(trade['price'])})
+        return result
+
+    def get_order_book_info(self, traded_pair, limit=20):
+        result = self.client.get_order_book(symbol=traded_pair, limit=limit)
         return result
 
 
