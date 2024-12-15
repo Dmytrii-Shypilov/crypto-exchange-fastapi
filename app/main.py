@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api.binance_stream import stream_router
+from app.routers.binance_stream import stream_router
 
 from app.services.binance_client import binance
 
