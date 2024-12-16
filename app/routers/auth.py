@@ -9,12 +9,16 @@ auth_router = APIRouter(prefix='/auth', tags=['Authentication'])
 
 @auth_router.post('/signup')
 async def signup_user(user: UserSignup, response: Response):
+    print('SIGNUPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP')
     user_collection = get_collection('users')
+    print(user)
     existing_user = await user_collection.find_one({'email': user.email})
+    print(existing_user)
     if existing_user:
         raise HTTPException(status_code=400, detail='Email already registered')
+    print('hashing password')
     hashed_password = get_password_hash(user.password)
-    new_user = {'firstName': user.firstName, 'lastName': user.lastName,
+    new_user = {'firstName': user.firstName, 'lastName': user.lastName, 'email': user.email,
                 'hashed_password': hashed_password, 'is_active': True}
     result = await user_collection.insert_one(new_user)
     _id = result.inserted_id
@@ -39,7 +43,7 @@ async def signup_user(user: UserSignup, response: Response):
         max_age=30*60
     )
 
-    return User(firstName=new_user['firstName'], lastName=new_user['lastName'], email=new_user['email'], is_active=new_user['is_active'], id=_id)
+    return {'firstName':new_user['firstName'], 'lastName':new_user['lastName'], 'email':new_user['email'], 'is_active':new_user['is_active'], 'id':str(_id)}
 
 
 @auth_router.post('/login')
@@ -48,7 +52,7 @@ async def login_user(payload: UserLogin, response: Response):
     user = await user_collection.find_one({'email': payload.email})
     password_verified = verify_password(
         payload.password, user['hashed_password'])
-    if not user and not password_verified:
+    if not user or not password_verified:
         raise HTTPException(status_code=400, detail='Invalid credentials')
     access_token = create_access_token(data={'sub': str(user['_id'])})
     refresh_token = create_refresh_token(data={'sub': str(user['_id'])})
@@ -69,7 +73,8 @@ async def login_user(payload: UserLogin, response: Response):
         samesite='Strict',
         max_age=5*24*60*60
     )
-    return User(firstName=user['firstName'], lastName=user['lastName'], email=user['email'], is_active=user['is_active'], id=str(user['_id']))
+    print(user, password_verified)
+    return {'firstName': user['firstName'], 'lastName': user['lastName'], 'email': user['email'], 'is_active': user['is_active'], 'id':str(user['_id'])}
 
 
 @auth_router.post('/current')

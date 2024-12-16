@@ -1,12 +1,13 @@
 from datetime import timedelta, datetime
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+# from passlib.context import CryptContext
 from fastapi import HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
 from app.db.mongo_session import get_collection
-from app.schemas.user import Token
+# from app.schemas.user import Token
 from bson import ObjectId
 from dotenv import load_dotenv
+import bcrypt
 import os
 
 load_dotenv()
@@ -16,16 +17,21 @@ load_dotenv()
 SECRET_KEY = os.getenv("ENCR_SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 
-pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
+
+# pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/auth/login')
 
 # Hash password
 def get_password_hash(password: str):
-    return pwd_context.hash(password)
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed_password.decode('utf-8')
+    # return pwd_context.hash(password)
 
 # Verify password
 def verify_password(plain_password: str, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    # return pwd_context.verify(plain_password, hashed_password)
 
 # Create JWT token
 def create_access_token(data: dict, expires_delta: timedelta = timedelta(minutes=15)):
