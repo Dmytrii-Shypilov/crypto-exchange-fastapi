@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, Request
-from app.authorization import create_access_token, create_refresh_token, get_password_hash, verify_password, decode_access_token
+from app.services.authorization import create_access_token, create_refresh_token, get_password_hash, verify_password, decode_access_token
 from app.db.mongo_session import get_collection
 from app.schemas.user import User, UserSignup, UserLogin
 
