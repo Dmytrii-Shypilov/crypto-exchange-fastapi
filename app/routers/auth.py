@@ -74,7 +74,7 @@ async def login_user(payload: UserLogin, response: Response):
         max_age=5*24*60*60
     )
     print(user, password_verified)
-    return {'firstName': user['firstName'], 'lastName': user['lastName'], 'email': user['email'], 'is_active': user['is_active'], 'id':str(user['_id'])}
+    return {'firstName': user['firstName'], 'lastName': user['lastName'], 'email': user['email'], 'id':str(user['_id'])}
 
 
 @auth_router.post('/current')
@@ -89,7 +89,7 @@ async def get_current_user(request: Request):
         user = await user_collection.find_one({'_id': user_id})
         if not user:
             raise HTTPException(status_code=404, detail='User no found')
-        return User(firstName=user['firstName'], lastName=user['lastName'], email=user['email'], is_active=user['is_active'], id=str(user['_id']))
+        return User(firstName=user['firstName'], lastName=user['lastName'], email=user['email'], id=str(user['_id']))
 
     except Exception:
         raise HTTPException(status_code=401, detail='Invalid or expired token')
@@ -98,4 +98,4 @@ async def get_current_user(request: Request):
 async def logout_user(response: Response):
     response.delete_cookie(key='access_token', httponly=True, secure=True, samesite='Strict')
     response.delete_cookie(key='refresh_token', httponly=True, secure=True, samesite='Strict')
-    return {'message': "Logged out"}
+    return {'isLoggedOut': True}
