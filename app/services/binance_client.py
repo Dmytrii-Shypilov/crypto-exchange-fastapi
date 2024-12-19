@@ -28,13 +28,30 @@ class BinanceTrade:
 
     def get_recent_trades(self, trade_pair: str):
         result = self.client.get_recent_trades(symbol=trade_pair, limit=10)
-        for trade in result:
-            trade.update({'price': self.format_num(trade['price'])})
         return result
 
     def get_order_book_info(self, traded_pair, limit=20):
         result = self.client.get_order_book(symbol=traded_pair, limit=limit)
         return result
+
+    def get_traded_pairs(self, quoteAsset: str):
+        print('method')
+        symbols_info = self.client.get_exchange_info()['symbols']
+        tickers = self.client.get_ticker()
+        btc_traded_coins = [
+        symbol['symbol'] for symbol in symbols_info
+        if symbol['quoteAsset'] == quoteAsset and symbol['status'] == 'TRADING']
+        pairs_info = []
+        for ticker in tickers:
+           if ticker['symbol'] in btc_traded_coins:
+
+            pairs_info.append({
+                'pair': f'{ticker['symbol'][:-len(quoteAsset)]}/{ticker['symbol'][-len(quoteAsset):]}',
+                'change': ticker['priceChangePercent'],  
+                'lastPrice': ticker['lastPrice']           
+            })
+
+        return sorted(pairs_info, key=lambda x: x['pair'])
 
 
 binance = BinanceTrade(client)
