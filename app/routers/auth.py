@@ -66,7 +66,7 @@ async def login_user(payload: UserLogin, response: Response):
         httponly=True,
         secure=True, #True
         samesite='None', #Strict
-        max_age=15*60
+        max_age=45*60
     )
 
     response.set_cookie(

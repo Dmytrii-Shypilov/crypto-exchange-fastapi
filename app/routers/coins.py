@@ -34,3 +34,8 @@ async def get_traded_coins(quoteAsset: str,request: Request):
         }
     except Exception:
         raise HTTPException(status_code=401, detail='Invalid or expired token')
+
+
+@coins_router.post('/addFav/{pair}')
+async def add_favorite_pair(pair: str):
+    pass
