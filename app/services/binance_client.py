@@ -35,7 +35,6 @@ class BinanceTrade:
         return result
 
     def get_traded_pairs(self, quoteAsset: str):
-        print('method')
         symbols_info = self.client.get_exchange_info()['symbols']
         tickers = self.client.get_ticker()
         btc_traded_coins = [
@@ -50,8 +49,14 @@ class BinanceTrade:
                 'change': ticker['priceChangePercent'],  
                 'lastPrice': ticker['lastPrice']           
             })
-
         return sorted(pairs_info, key=lambda x: x['pair'])
+    
+    def get_lattest_trade_id(self, pair: str):
+            lattest_trade = self.get_recent_trades(pair)[-1]
+            return lattest_trade['id']
+
+
+        
 
 
 binance = BinanceTrade(client)

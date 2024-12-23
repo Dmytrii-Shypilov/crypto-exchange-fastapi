@@ -77,7 +77,7 @@ async def login_user(payload: UserLogin, response: Response):
         samesite='None',
         max_age=5*24*60*60
     )
-    print(user, password_verified)
+
     return {'firstName': user['firstName'], 'lastName': user['lastName'], 'email': user['email'], 'id': str(user['_id'])}
 
 

@@ -2,9 +2,12 @@ from fastapi import FastAPI
 from app.routers.binance_stream import stream_router
 from app.routers.auth import auth_router
 from app.routers.coins import coins_router
+from app.routers.paper_trade import paper_trade_router
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.services.binance_client import binance, client
+
+from datetime import datetime
 
 
 app = FastAPI()
@@ -26,32 +29,22 @@ app.add_middleware(
 
 @app.get('/')
 async def hello():
-    # trade_info = client.get_all_coins_info()
-    trade_info = client.get_exchange_info()['symbols']
-    tickers = client.get_ticker()
-    btc_traded_coins = [
-        symbol['symbol'] for symbol in trade_info
-        if symbol['quoteAsset'] == 'BTC' and symbol['status'] == 'TRADING']
-    pairs_info = []
-    for ticker in tickers:
-        if ticker['symbol'] in btc_traded_coins:
+    trades = binance.get_recent_trades('BTCUSDT')
+    timestamp = trades[-1]['time']
+    id = trades[-1]['id']
+    timestamp_sec = timestamp/ 1000
 
-            pairs_info.append({
-                'pair': f'{ticker['symbol'][:-len('BTC')]}/{ticker['symbol'][-len('BTC'):]}',
-                '24h_change': ticker['priceChangePercent'],  
-                'last_price': ticker['lastPrice']           
-            })
+    # Convert to a datetime object
+    dt_object = datetime.fromtimestamp(timestamp_sec)
 
-    return sorted(pairs_info[0:20], key=lambda x: x['pair'])
-    # order_book = binance.get_order_book_info('BTCUSDT')
-    # coins_trades = binance.get_recent_trades('BTCUSDT')
-    # coins_info = binance.get_traded_pair_info('BTCUSDT')
-    # # print(type(order_book['bids'][0][0])) - > str
-    # # return {'coinsInfo': coins_info,
-    # #         # 'orderBook': order_book,
-    # #         'trades': coins_trades
-    # #         }
+    # Format the datetime object into a readable string
+    readable_date = dt_object.strftime("%Y-%m-%d %H:%M:%S")
+    return trades, [id, timestamp]
+
+
+
 
 app.include_router(stream_router)
 app.include_router(auth_router)
 app.include_router(coins_router)
+app.include_router(paper_trade_router)
