@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from app.db.mongo_session import get_collection
 from app.services.binance_client import binance
-from app.services.authorization import decode_access_token
+from app.services.authorization import auth
 from bson import ObjectId
 
 
@@ -14,9 +14,8 @@ async def get_favorite_coins(request: Request):
 
             if not token:
                 raise HTTPException(status_code=401, detail="Token not found")
-            decoded_data = decode_access_token(token)
+            user_id = auth.validate_token(token)
 
-            user_id = decoded_data.get('sub')
             if not user_id:
 
                 raise HTTPException(
@@ -36,9 +35,9 @@ async def get_traded_coins(quoteAsset: str, request: Request):
 
         if not token:
             raise HTTPException(status_code=401, detail="Token not found")
-        decoded_data = decode_access_token(token)
+        user_id = auth.validate_token(token)
 
-        user_id = decoded_data.get('sub')
+       
 
         if not user_id:
 
@@ -63,8 +62,8 @@ async def add_favorite_pair(pair: str, request: Request):
        
         if not token:
             raise HTTPException(status_code=401, detail="Token not found")
-        decoded_data = decode_access_token(token)
-        user_id = decoded_data.get('sub')
+        user_id = auth.validate_token(token)
+       
 
         if not user_id:
             raise HTTPException(
@@ -94,8 +93,8 @@ async def remove_favorite_pair(pair: str, request: Request):
             raise HTTPException(status_code=401, detail="Token not found")
 
         # Decode the token to extract user data
-        decoded_data = decode_access_token(token)
-        user_id = decoded_data.get('sub')  # Assuming 'sub' contains the user ID
+        user_id = auth.validate_token(token)
+       
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token: user ID missing")
 
