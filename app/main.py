@@ -136,6 +136,7 @@ def fill_the_limit_order(hist_trades: List[dict], order: dict):
                     break
 
         elif order['side'] == 'sell' and trade['isBuyerMaker']:
+            print(f"buy: {trade['price']} sell: {order['price']} match: {float(trade['price']) >= float(order['price'])}")
             # For sell orders, match trades where the price is greater than or equal to the limit price
             if float(trade['price']) >= float(order['price']):
                 trade_amount = float(trade['qty'])  # Base currency amount in this trade
@@ -193,9 +194,9 @@ def fill_the_limit_order(hist_trades: List[dict], order: dict):
 async def hello():
     trades = client.get_historical_trades(symbol='BTCUSDT',limit=500 , fromId= '4332450719')
 
-    my_order_1 = {'orderTime': int(datetime.now().timestamp() * 1000) ,'type': 'limit','pair': 'BTCUSDT', 'side': 'buy', 'price': '98472.00', 'amount': '0.005', 'total': '492.36'}
-    my_order_2 = {'orderTime': int(datetime.now().timestamp() * 1000) ,'type': 'limit','pair': 'BTCUSDT', 'side': 'buy', 'price': '98472.00', 'amount': '0.015', 'total': '1477.08'}
-    order, trades= fill_the_limit_order_gpt(hist_trades=trades, order=my_order_2)
+    my_order_1 = {'orderTime': int(datetime.now().timestamp() * 1000) ,'type': 'limit','pair': 'BTCUSDT', 'side': 'sell', 'price': '98490.00', 'amount': '0.025', 'total': '2462.25'}
+    my_order_2 = {'orderTime': int(datetime.now().timestamp() * 1000) ,'type': 'limit','pair': 'BTCUSDT', 'side': 'buy', 'price': '98495.00', 'amount': '0.015', 'total': '1477.08'}
+    order, trades= fill_the_limit_order(hist_trades=trades, order=my_order_1)
 
     result = [order, trades]
 
