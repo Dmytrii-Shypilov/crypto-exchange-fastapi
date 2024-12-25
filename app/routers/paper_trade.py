@@ -3,7 +3,8 @@ from app.services.paper_trade_client import paper_trader
 from app.db.mongo_session import get_collection
 from app.services.binance_client import binance
 from app.services.authorization import auth
-from datetime import datetime, timezone
+from app.db.mongo_session import get_collection
+from datetime import datetime
 from bson import ObjectId
 import asyncio
 
@@ -32,13 +33,27 @@ async def paper_trade_stream(websocket: WebSocket, user_id: str):
     connection +=1
     active_connections[user_id] = websocket
     trader = paper_trader.get_client(user_id)
+    # getting collections from the database
+    orders_collection = get_collection('orders')
+    trades_collection = get_collection('trades')
+    
+    # add data to the cache
+    db_orders = await list(orders_collection.find())
+    db_trades = await list(trades_collection.find())
+    trader.fill_cached_data(trades=db_trades, orders=db_orders)
+    print(trader.get_all_data())
     
     try:
         while user_id in active_connections:          
             orders = f" my_id: {user_id} conn: {connection} my_orders{len(trader.get_orders())}"
             print(active_connections)
             print(orders)
-       
+        # filling orders and posting trades logic
+
+
+
+
+
             await asyncio.sleep(2)
         await websocket.close()
     except WebSocketDisconnect:

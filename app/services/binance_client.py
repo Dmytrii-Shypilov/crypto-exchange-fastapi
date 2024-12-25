@@ -55,7 +55,7 @@ class BinanceTrade:
             lattest_trade = self.get_recent_trades(pair)[-1]
             return lattest_trade['id']
 
-
+    
         
 
 

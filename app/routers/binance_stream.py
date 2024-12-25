@@ -15,6 +15,7 @@ async def stream_trade(websocket: WebSocket, traded_pair: str):
                 # Fetch data from Binance
                 order_book = binance.get_order_book_info(traded_pair=pair)
                 coins_info = binance.get_traded_pair_info(traded_pair=pair)
+                
             except Exception as e:
                 print(f"Error fetching Binance data: {e}")
                 await websocket.close(code=1011)  # Internal server error
