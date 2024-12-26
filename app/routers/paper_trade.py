@@ -48,10 +48,22 @@ async def paper_trade_stream(websocket: WebSocket, user_id: str):
             orders = f" my_id: {user_id} conn: {connection} my_orders{len(trader.get_orders())}"
             print(active_connections)
             print(orders)
-        # filling orders and posting trades logic
-
-
-
+       
+       # Checking each order for fulfillment
+        for order in trader.cached_data['orders']:
+            lattest_trade_id = order['lattestTradeId']
+            # moving through all trades since the lattest trade id this order was posted
+            while lattest_trade_id:
+                hist_trades = trader.client.get_historical_trades(symbol=order['pair'], limit=500, fromId=lattest_trade_id)
+                if hist_trades == []:
+                    break
+              
+                if order['type'] == 'limit':
+                    final_order, trades = trader.fill_the_limit_order(hist_trades, order)
+                if not final_order:
+                    trader.remove_order(order_id=order['_id'])
+                else:
+                    trader.update_order(final_order)
 
 
             await asyncio.sleep(2)
