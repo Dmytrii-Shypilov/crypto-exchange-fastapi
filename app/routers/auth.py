@@ -68,6 +68,7 @@ async def get_current_user(request: Request):
 
 @auth_router.post('/logout')
 async def logout_user(response: Response):
+    print('LOGOUT')
     response.delete_cookie(key='access_token', httponly=True,
                            secure=True, samesite='Strict')
     response.delete_cookie(key='refresh_token',

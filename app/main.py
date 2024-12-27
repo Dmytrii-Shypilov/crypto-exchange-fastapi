@@ -159,20 +159,22 @@ def fill_the_limit_order(hist_trades: List[dict], order: dict):
 
 @app.get('/')
 async def hello():
-   
-    price= 98472
-    my_order_2 = {'orderTime': int(datetime.now().timestamp() * 1000) ,'type': 'limit','pair': 'BTCUSDT', 'side': 'buy', 'price': '98495.00', 'amount': '0.215', 'total': '21176.425'}
-    # trades = trades_retriver.get_historical_trades_batch(symbol='BTCUSDT', startTime=int((datetime.now() - timedelta(hours=10)).timestamp() * 1000), endTime = int(datetime.now().timestamp() * 1000))
-    last_id = '4332450816'
-    it = 35
-    while it >0:
-        trades = client.get_historical_trades(symbol='BTCUSDT',limit=500 , fromId= last_id)
-        last_id = trades[-1]['id']
-        # it -=1
-        order, trades = fill_the_limit_order(order=my_order_2, hist_trades=trades)
-        if not order:
-             it=0
-    return {'order': my_order_2, 'trades': trades}
+    print('Hello') 
+    # price= 98472
+    # my_order_2 = {'orderTime': int(datetime.now().timestamp() * 1000) ,'type': 'limit','pair': 'BTCUSDT', 'side': 'buy', 'price': '98495.00', 'amount': '0.215', 'total': '21176.425'}
+    # # trades = trades_retriver.get_historical_trades_batch(symbol='BTCUSDT', startTime=int((datetime.now() - timedelta(hours=10)).timestamp() * 1000), endTime = int(datetime.now().timestamp() * 1000))
+    # last_id = '4332450816'
+    # it = 35
+    # while it >0:
+    #     trades = client.get_historical_trades(symbol='BTCUSDT',limit=500 , fromId= last_id)
+    #     last_id = trades[-1]['id']
+    #     # it -=1
+    #     order, trades = fill_the_limit_order(order=my_order_2, hist_trades=trades)
+    #     print(trades[0])
+    #     if not order:
+    #          it=0
+    # return {'order': my_order_2, 'trades': trades}
+    
     
 
     # trades =client.get_my_trades(symbol='BTCUSDT', startTime=int((datetime.now() - timedelta(hours=10)).timestamp() * 1000), endTime = int(datetime.now().timestamp() * 1000))

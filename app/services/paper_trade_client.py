@@ -60,22 +60,26 @@ class PaperTradeClient(BinanceTrade):
         return filtered_klines
         
     
-    def fill_the_limit_order(hist_trades: List[dict], order: dict):
+    def fill_the_limit_order(self, hist_trades: List, order: dict):
         my_trades = []
-        remaining_amount = Decimal(order['amount'])  # Base currency amount (e.g., BTC)
-        remaining_total = Decimal(order['total'])   # Quote currency total (e.g., USDT)
-        
+        init_trade_amount = float(order['amount'])
+        remaining_amount = float(order['amount'])  # Base currency amount (e.g., BTC)
+        remaining_total = float(order['total'])   # Quote currency total (e.g., USDT)
+        # print(f"FIRST TRADE ID: {hist_trades[0]['id']}  LAST TRADE ID: {hist_trades[-1]['id']}")
         # Ensure trades are sorted once by price before filtering
         sorted_trades = sorted(hist_trades, key=lambda x: float(x['price']), reverse=(order['side'] == 'sell'))
-        
+        # print(f"SIDE: {order['side']}")
+
         if order['side'] == 'buy':
             if float(sorted_trades[0]['price']) <= float(order['price']):
                 # Filter trades where isBuyerMaker is False and price <= order's price
                 filtered_trades = [trade for trade in sorted_trades if not trade['isBuyerMaker'] and float(trade['price']) <= float(order['price'])]
             else:
                 # If the lowest price in sorted trades is higher than the order price, no matches
+                print('NO MATCH')
+                order.update({'latestTradeId': hist_trades[-1]['id']})
                 return order, my_trades
-        
+
         # Handle 'sell' orders
         elif order['side'] == 'sell':
             if float(sorted_trades[-1]['price']) >= float(order['price']):
@@ -83,18 +87,22 @@ class PaperTradeClient(BinanceTrade):
                 filtered_trades = [trade for trade in sorted_trades if trade['isBuyerMaker'] and float(trade['price']) >= float(order['price'])]
             else:
                 # If the highest price in sorted trades is lower than the order price, no matches
+                print('NO MATCH')
+                order.update({'latestTradeId': hist_trades[-1]['id']})
                 return order, my_trades
 
         # If there are no matching trades, return the original order
         if not filtered_trades:
+            print('NO MATCH FILTERED')
+            order.update({'latestTradeId': hist_trades[-1]['id']})
             return order, my_trades
-    
+
         # Loop through filtered trades to fill the order
         for trade in filtered_trades:
-            trade_price = Decimal(trade['price']) # Round price to 2 decimal places for precision
-            trade_amount = Decimal(trade['qty'])  # Round qty to 6 decimal places for precision
-            trade_total = Decimal(trade['quoteQty']) # Round quoteQty to 2 decimal places
-            print(remaining_amount,remaining_total)
+            trade_price = float(trade['price'])  # Round price to 2 decimal places for precision
+            trade_amount = float(trade['qty'])   # Round qty to 6 decimal places for precision
+            trade_total = float(trade['quoteQty'])  # Round quoteQty to 2 decimal places
+            
             if order['side'] == 'buy' and not trade['isBuyerMaker']:
                 if remaining_amount >= trade_amount:
                     remaining_amount -= trade_amount
@@ -109,6 +117,7 @@ class PaperTradeClient(BinanceTrade):
                         'amount': trade_amount,
                         'total': trade_total
                     }
+                    print(f'PARTIALLY {trade_amount} of BASE')
                     my_trades.append(partially_filled_trade)
                 else:
                     partial_trade_total = remaining_amount * trade_price
@@ -122,11 +131,10 @@ class PaperTradeClient(BinanceTrade):
                         'amount': remaining_amount,
                         'total': partial_trade_total
                     }
+                    print(f'FULLY {trade_amount} of BASE')
                     my_trades.append(fully_filled_trade)
                     remaining_amount = 0
                     remaining_total = 0
-                    print(remaining_amount, remaining_total)
-                    # print(trade['price'], order['price'], order['side'], fully_filled_trade)
                     break
 
             elif order['side'] == 'sell' and trade['isBuyerMaker']:
@@ -144,7 +152,6 @@ class PaperTradeClient(BinanceTrade):
                         'total': trade_total
                     }
                     my_trades.append(partially_filled_trade)
-                
                 else:
                     partial_trade_total = remaining_amount * trade_price
                     fully_filled_trade = {
@@ -157,9 +164,7 @@ class PaperTradeClient(BinanceTrade):
                         'amount': remaining_amount,
                         'total': partial_trade_total
                     }
-                    
                     my_trades.append(fully_filled_trade)
-                
                     remaining_amount = 0
                     remaining_total = 0
                     break
@@ -173,7 +178,7 @@ class PaperTradeClient(BinanceTrade):
             order.update({
                 'total': remaining_total,
                 'amount': remaining_amount,
-                'filled': float(order['amount']) - remaining_amount,
+                'filled': init_trade_amount - remaining_amount,
                 'latestTradeId': filtered_trades[-1]['id']
             })
         else:
@@ -183,16 +188,16 @@ class PaperTradeClient(BinanceTrade):
         return order, my_trades
 
 class PaperTradeManager:
-    def __init__(self):
+    def __init__(self, client: Client):
         self.user_clients = {}
-
+        self.client = client
     def get_client(self, user_id: str) -> PaperTradeClient:
         if user_id not in self.user_clients:
-            self.user_clients[user_id] = PaperTradeClient()
+            self.user_clients[user_id] = PaperTradeClient(self.client)
         return self.user_clients[user_id]
 
 
-paper_trader = PaperTradeManager()
+paper_trader = PaperTradeManager(client=client)
 
 
 
