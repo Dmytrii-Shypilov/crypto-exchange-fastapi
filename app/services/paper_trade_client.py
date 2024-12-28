@@ -88,7 +88,7 @@ class PaperTradeClient(BinanceTrade):
                 symbol='BTCUSDT', fromId=state['latestTradeId'], limit=1000)
             
             # Exit loop if no more trades
-            if not len(hist_trades):
+            if not len(hist_trades) or len(hist_trades) < 500:
                 state['searchExhausted'] = True
                 break
 
