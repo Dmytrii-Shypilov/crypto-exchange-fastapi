@@ -1,3 +1,4 @@
+from datetime import datetime
 from fastapi import FastAPI
 from app.routers.binance_stream import stream_router
 from app.routers.auth import auth_router
@@ -29,221 +30,206 @@ app.add_middleware(
 )
 
 
-from datetime import datetime
-from typing import List
+def fill_the_limit_order(order: dict):
+    print(order)
+    state = {
+        'side': order['side'],
+        'searchExhausted': False,
+        'fillComplete': False,
+        'latestTradeId': order['latestTradeId'],
+        'myTrades': [],
+        'remAmount': Decimal(order['amount']),
+        'remTotal': Decimal(order['total']),
+        'balance': {
+            'orderTotal': Decimal(order['total']),
+            'orderAmount': Decimal(order['amount']),
+            'tradesTotal':Decimal('0'),
+            'tradesAmount': Decimal('0'),
+        }
+    }
 
-def fill_the_limit_order(hist_trades: List[dict], order: dict):
-    my_trades = []
-    remaining_amount = Decimal(order['amount'])  # Base currency amount (e.g., BTC)
-    remaining_total = Decimal(order['total'])   # Quote currency total (e.g., USDT)
-    
-    # Ensure trades are sorted once by price before filtering
-    sorted_trades = sorted(hist_trades, key=lambda x: float(x['price']), reverse=(order['side'] == 'sell'))
-    
-    if order['side'] == 'buy':
-        if float(sorted_trades[0]['price']) <= float(order['price']):
-            # Filter trades where isBuyerMaker is False and price <= order's price
-            filtered_trades = [trade for trade in sorted_trades if not trade['isBuyerMaker'] and float(trade['price']) <= float(order['price'])]
-        else:
-            # If the lowest price in sorted trades is higher than the order price, no matches
-            return order, my_trades
-    
-    # Handle 'sell' orders
-    elif order['side'] == 'sell':
-        if float(sorted_trades[-1]['price']) >= float(order['price']):
-            # Filter trades where isBuyerMaker is True and price >= order's price
-            filtered_trades = [trade for trade in sorted_trades if trade['isBuyerMaker'] and float(trade['price']) >= float(order['price'])]
-        else:
-            # If the highest price in sorted trades is lower than the order price, no matches
-            return order, my_trades
-
-    # If there are no matching trades, return the original order
-    if not filtered_trades:
-        return order, my_trades
- 
-    # Loop through filtered trades to fill the order
-    for trade in filtered_trades:
-        trade_price = Decimal(trade['price']) # Round price to 2 decimal places for precision
-        trade_amount = Decimal(trade['qty'])  # Round qty to 6 decimal places for precision
-        trade_total = Decimal(trade['quoteQty']) # Round quoteQty to 2 decimal places
-        print(remaining_amount,remaining_total)
-        if order['side'] == 'buy' and not trade['isBuyerMaker']:
-            if remaining_amount >= trade_amount:
-                remaining_amount -= trade_amount
-                remaining_total -= trade_total
-                partially_filled_trade = {
-                    'orderTime': order['orderTime'],
-                    'pair': order['pair'],
-                    'type': order['type'],
-                    'side': order['side'],
-                    'executed': int(datetime.now().timestamp() * 1000),
-                    'price': trade_price,
-                    'amount': trade_amount,
-                    'total': trade_total
-                }
-                my_trades.append(partially_filled_trade)
-            else:
-                partial_trade_total = remaining_amount * trade_price
-                fully_filled_trade = {
-                    'orderTime': order['orderTime'],
-                    'pair': order['pair'],
-                    'type': order['type'],
-                    'side': order['side'],
-                    'executed': int(datetime.now().timestamp() * 1000),
-                    'price': trade_price,
-                    'amount': remaining_amount,
-                    'total': partial_trade_total
-                }
-                my_trades.append(fully_filled_trade)
-                remaining_amount = 0
-                remaining_total = 0
-                print(remaining_amount, remaining_total)
-                # print(trade['price'], order['price'], order['side'], fully_filled_trade)
-                break
-
-        elif order['side'] == 'sell' and trade['isBuyerMaker']:
-            if remaining_amount >= trade_amount:
-                remaining_amount -= trade_amount
-                remaining_total -= trade_total
-                partially_filled_trade = {
-                    'orderTime': order['orderTime'],
-                    'pair': order['pair'],
-                    'type': order['type'],
-                    'side': order['side'],
-                    'executed': int(datetime.now().timestamp() * 1000),
-                    'price': trade_price,
-                    'amount': trade_amount,
-                    'total': trade_total
-                }
-                my_trades.append(partially_filled_trade)
-            
-            else:
-                partial_trade_total = remaining_amount * trade_price
-                fully_filled_trade = {
-                    'orderTime': order['orderTime'],
-                    'pair': order['pair'],
-                    'type': order['type'],
-                    'side': order['side'],
-                    'executed': int(datetime.now().timestamp() * 1000),
-                    'price': trade_price,
-                    'amount': remaining_amount,
-                    'total': partial_trade_total
-                }
-                
-                my_trades.append(fully_filled_trade)
-              
-                remaining_amount = 0
-                remaining_total = 0
-                break
-
-        # Stop processing if the order is fully filled
-        if remaining_amount <= 0:
+    while not state['fillComplete'] and not state['searchExhausted']:
+       
+        hist_trades = client.get_historical_trades(
+            symbol='BTCUSDT', fromId=state['latestTradeId'], limit=1000)
+        
+        # Exit loop if no more trades
+        if not hist_trades:
+            state['searchExhausted'] = True
             break
 
-    # After processing, if there is remaining amount, the order is partially filled
-    if remaining_amount > 0:
-        order.update({
-            'total': remaining_total,
-            'amount': remaining_amount,
-            'filled': float(order['amount']) - remaining_amount,
-            'latestTradeId': filtered_trades[-1]['id']
-        })
-    else:
-        # Order is fully filled, return None
-        order = None
+        # Sort trades by price (ascending for buy, descending for sell)
+        sorted_trades = sorted(
+            hist_trades, 
+            key=lambda x: Decimal(x['price']), 
+            reverse=(order['side'] == 'sell')
+        )
 
-    return order, my_trades
+        # Filter trades based on side and price
+        if order['side'] == 'buy':
+            filtered_trades = [
+                trade for trade in sorted_trades 
+                if not trade['isBuyerMaker'] and Decimal(trade['price']) <= Decimal(order['price'])
+            ]
+        else:  # sell
+            filtered_trades = [
+                trade for trade in sorted_trades 
+                if trade['isBuyerMaker'] and Decimal(trade['price']) >= Decimal(order['price'])
+            ]
 
+        # Update latestTradeId to the highest ID in current batch
+        state['latestTradeId'] = int(hist_trades[-1]['id']) + 1
+        print(f'Id: {state['latestTradeId']} histTrLen: {len(hist_trades)} filterdeLen: {len(filtered_trades)}' )
+        # Skip to next iteration if no matching trades
+        if not filtered_trades:
+            continue
 
+        # Process filtered trades
+        for trade in filtered_trades:
+            trade_price = Decimal(trade['price'])
+            trade_amount = Decimal(trade['qty'])
+            trade_total = trade_price * trade_amount
+
+            if state['remAmount'] >= trade_amount:
+                # Full trade match
+               
+                state['remAmount'] -= trade_amount
+                state['remTotal'] -= trade_total
+                state['myTrades'].append({
+                    'pair': order['pair'],
+                    'orderTime': order['orderTime'],
+                    'type': order['type'],
+                    'side': order['side'],
+                    'executed': int(datetime.now().timestamp() * 1000),
+                    'price': trade_price,
+                    'amount': trade_amount,
+                    'total': trade_total,
+                })
+                state['balance']['tradesTotal'] += trade_total
+                state['balance']['tradesAmount'] += trade_amount
+            else:
+                # Partial trade match
+                partial_trade_total = state['remAmount'] * trade_price
+                state['myTrades'].append({
+                    'pair': order['pair'],
+                    'orderTime': order['orderTime'],
+                    'type': order['type'],
+                    'side': order['side'],
+                    'executed': int(datetime.now().timestamp() * 1000),
+                    'price': trade_price,
+                    'amount': state['remAmount'],
+                    'total': partial_trade_total,
+                })
+                state['balance']['tradesAmount'] += state['remAmount']
+                state['balance']['tradesTotal'] += partial_trade_total
+                state['remAmount'] = Decimal(0)
+                state['remTotal'] = Decimal(0)
+                state['fillComplete'] = True
+                 
+                break
+
+        # Stop processing if fully filled
+        if state['fillComplete']:
+            break
+    state['balance'].update({'quoteDifference': state['balance']['tradesTotal'] - state['balance']['orderTotal']})
+    return  state
 
 
 @app.get('/')
 async def hello():
-    print('Hello') 
-    # price= 98472
-    # my_order_2 = {'orderTime': int(datetime.now().timestamp() * 1000) ,'type': 'limit','pair': 'BTCUSDT', 'side': 'buy', 'price': '98495.00', 'amount': '0.215', 'total': '21176.425'}
-    # # trades = trades_retriver.get_historical_trades_batch(symbol='BTCUSDT', startTime=int((datetime.now() - timedelta(hours=10)).timestamp() * 1000), endTime = int(datetime.now().timestamp() * 1000))
-    # last_id = '4332450816'
-    # it = 35
-    # while it >0:
-    #     trades = client.get_historical_trades(symbol='BTCUSDT',limit=500 , fromId= last_id)
-    #     last_id = trades[-1]['id']
-    #     # it -=1
-    #     order, trades = fill_the_limit_order(order=my_order_2, hist_trades=trades)
-    #     print(trades[0])
-    #     if not order:
-    #          it=0
-    # return {'order': my_order_2, 'trades': trades}
-    
-    
+    print('Hello')
+     # price= 98472
+    lat_id = '4332450816'
+    price = Decimal('120300')
+    base = Decimal('0.23')
+    tot_quote = price * base
+    my_order_2 = {'orderTime': int(datetime.now().timestamp() * 1000), 'type': 'limit', 'pair': 'BTCUSDT',
+                    'side': 'sell', 'price': price, 'amount': base, 'total': tot_quote, 'latestTradeId': lat_id}
+  
+    state = fill_the_limit_order(order=my_order_2)
+    total = 0
+    amount = 0
+   
 
-    # trades =client.get_my_trades(symbol='BTCUSDT', startTime=int((datetime.now() - timedelta(hours=10)).timestamp() * 1000), endTime = int(datetime.now().timestamp() * 1000))
-    
-    # my_order_1 = {'orderTime': int(datetime.now().timestamp() * 1000) ,'type': 'limit','pair': 'BTCUSDT', 'side': 'sell', 'price': '98490.00', 'amount': '0.025', 'total': '2462.25'}
-    # my_order_2 = {'orderTime': int(datetime.now().timestamp() * 1000) ,'type': 'limit','pair': 'BTCUSDT', 'side': 'buy', 'price': '98495.00', 'amount': '0.015', 'total': '1477.08'}
+    for trade in state['myTrades']:
+        total+= trade['total']
+        amount+= trade['amount']
+    # del state['myTrades']
+    comparison = {'ordT': my_order_2['total'], 'ordA': my_order_2['amount'], 'finT':total, 'finA': amount}
+    return state, comparison
+        # while it >0:
+        #     trades = client.get_historical_trades(symbol='BTCUSDT',limit=500 , fromId= last_id)
+        #     last_id = trades[-1]['id']
+        #     # it -=1
+        #     order, trades = fill_the_limit_order(order=my_order_2, hist_trades=trades)
+        #     print(trades[0])
+        #     if not order:
+        #          it=0
+        # return {'order': my_order_2, 'trades': trades}
 
-    # symbol = 'BTCUSDT'
-    # interval = client.KLINE_INTERVAL_1HOUR
-    # time_from = int((datetime.now() - timedelta(hours=10)).timestamp() * 1000)
-    # # [0] open time
-    # # [2] high price
-    # # [3] low price
+        # trades =client.get_my_trades(symbol='BTCUSDT', startTime=int((datetime.now() - timedelta(hours=10)).timestamp() * 1000), endTime = int(datetime.now().timestamp() * 1000))
 
-    # # The HIGH price should be ≥ SELL order price. Low price is irrelevant here
-    # # The LOW price of the Kline must be ≤ BUY order price. The high price is irrelevant for this condition.
+        # my_order_1 = {'orderTime': int(datetime.now().timestamp() * 1000) ,'type': 'limit','pair': 'BTCUSDT', 'side': 'sell', 'price': '98490.00', 'amount': '0.025', 'total': '2462.25'}
+        # my_order_2 = {'orderTime': int(datetime.now().timestamp() * 1000) ,'type': 'limit','pair': 'BTCUSDT', 'side': 'buy', 'price': '98495.00', 'amount': '0.015', 'total': '1477.08'}
 
-    # def conv_to_date(timestamp: str):
-    #     ts_in_s = int(timestamp)/1000
-    #     dt_object = datetime.fromtimestamp(ts_in_s)
-    #     formatted_date_time = dt_object.strftime('%Y-%m-%d %H:%M:%S')
-    #     return formatted_date_time
-    
-    # # Order of klines is sorted according to the open/close time
-    # prices_list = client.get_klines(symbol=symbol, interval=interval, startTime=time_from)
-    # filtered = [kline for kline in prices_list if float(kline[3]) <= float(my_order_2['price'])]
+        # symbol = 'BTCUSDT'
+        # interval = client.KLINE_INTERVAL_1HOUR
+        # time_from = int((datetime.now() - timedelta(hours=10)).timestamp() * 1000)
+        # # [0] open time
+        # # [2] high price
+        # # [3] low price
 
-    
-    # timings= [{'open': conv_to_date(kline[0]) , 'close': conv_to_date(kline[6])} for kline in filtered]
-    # # return {'1st': prices_list[0], 'last': prices_list[-1]}
+        # # The HIGH price should be ≥ SELL order price. Low price is irrelevant here
+        # # The LOW price of the Kline must be ≤ BUY order price. The high price is irrelevant for this condition.
 
-    # return timings
-    # last_id = '4332450719'
-    # it = 35
-    # while it >0:
-    #     trades = client.get_historical_trades(symbol='BTCUSDT',limit=500 , fromId= last_id)
-    #     last_id = trades[-1]['id']
-    #     print(last_id)
-    #     # it -=1
-    #     print(len(trades))
-    
-    # order, trades= fill_the_limit_order(hist_trades=trades, order=my_order_1)
+        # def conv_to_date(timestamp: str):
+        #     ts_in_s = int(timestamp)/1000
+        #     dt_object = datetime.fromtimestamp(ts_in_s)
+        #     formatted_date_time = dt_object.strftime('%Y-%m-%d %H:%M:%S')
+        #     return formatted_date_time
 
-    # result = [order, trades]
+        # # Order of klines is sorted according to the open/close time
+        # prices_list = client.get_klines(symbol=symbol, interval=interval, startTime=time_from)
+        # filtered = [kline for kline in prices_list if float(kline[3]) <= float(my_order_2['price'])]
 
-    # amount = 0
-    # total= 0
-    # for trade in trades:
-    #     amount += float(trade['amount'])
-    #     total += float(trade['total'])
+        # timings= [{'open': conv_to_date(kline[0]) , 'close': conv_to_date(kline[6])} for kline in filtered]
+        # # return {'1st': prices_list[0], 'last': prices_list[-1]}
 
-    # print(f"total:{total} amount:{amount} == t:{my_order_2['total']} a:{my_order_2['amount']}")
+        # return timings
+        # last_id = '4332450719'
+        # it = 35
+        # while it >0:
+        #     trades = client.get_historical_trades(symbol='BTCUSDT',limit=500 , fromId= last_id)
+        #     last_id = trades[-1]['id']
+        #     print(last_id)
+        #     # it -=1
+        #     print(len(trades))
 
-    # return result
+        # order, trades= fill_the_limit_order(hist_trades=trades, order=my_order_1)
 
+        # result = [order, trades]
 
-    # trades = binance.get_recent_trades('BTCUSDT')
-    # timestamp = trades[-1]['time']
-    # id = trades[-1]['id']
-    # timestamp_sec = timestamp/ 1000
+        # amount = 0
+        # total= 0
+        # for trade in trades:
+        #     amount += float(trade['amount'])
+        #     total += float(trade['total'])
 
-    # # Convert to a datetime object
-    # dt_object = datetime.fromtimestamp(timestamp_sec)
+        # print(f"total:{total} amount:{amount} == t:{my_order_2['total']} a:{my_order_2['amount']}")
 
-    # # Format the datetime object into a readable string
-    # readable_date = dt_object.strftime("%Y-%m-%d %H:%M:%S")
-    # return trades, [id, timestamp]
+        # return result
 
+        # trades = binance.get_recent_trades('BTCUSDT')
+        # timestamp = trades[-1]['time']
+        # id = trades[-1]['id']
+        # timestamp_sec = timestamp/ 1000
 
+        # # Convert to a datetime object
+        # dt_object = datetime.fromtimestamp(timestamp_sec)
+
+        # # Format the datetime object into a readable string
+        # readable_date = dt_object.strftime("%Y-%m-%d %H:%M:%S")
+        # return trades, [id, timestamp]
 
 
 app.include_router(stream_router)
