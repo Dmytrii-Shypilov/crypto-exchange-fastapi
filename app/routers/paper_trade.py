@@ -45,8 +45,8 @@ async def paper_trade_stream(websocket: WebSocket, user_id: str):
     trader.fill_cached_data(trades=[], orders=db_orders)
    
     
-
-    if not trader.cached_data['orders']:
+    # check if there are orders available
+    if not len(trader.cached_data['orders']):
         print('NO ORDERS')
         await asyncio.sleep(30)
 
@@ -54,7 +54,19 @@ async def paper_trade_stream(websocket: WebSocket, user_id: str):
         if order['side'] == 'limit':
             print('limit')
             result = trader.fill_the_limit_order(order=order)
-            
+            if result['fillComplete']:
+                # remove order from cache and db (check the method!)
+                trader.remove_order(order)
+                # from db as well !!!
+                # check this method!
+                trader.add_trade(result['myTrades'])
+            else:
+                # update order if partially filled
+                update = {'amount': result['remAmount'], 'total': result['remTotal'], 'latestTradeId': result['latestTradeId']}
+                order.update(update)
+                trader.add_trade(result['myTrades'])
+                # update for db as well !!!
+
     # except WebSocketDisconnect:
     #     del active_connections[user_id]
     #     print(f"User {user_id} disconnected")

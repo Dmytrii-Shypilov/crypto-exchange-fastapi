@@ -125,7 +125,7 @@ class PaperTradeClient(BinanceTrade):
                 trade_total = trade_price * trade_amount
 
                 if state['remAmount'] >= trade_amount:
-                    # Full trade match
+                    # PArtial trade match
                 
                     state['remAmount'] -= trade_amount
                     state['remTotal'] -= trade_total
@@ -142,7 +142,7 @@ class PaperTradeClient(BinanceTrade):
                     state['balance']['tradesTotal'] += trade_total
                     state['balance']['tradesAmount'] += trade_amount
                 else:
-                    # Partial trade match
+                    # Full trade match if remAmount(order amount) < Trade Amount
                     partial_trade_total = state['remAmount'] * trade_price
                     state['myTrades'].append({
                         'pair': order['pair'],
@@ -166,6 +166,8 @@ class PaperTradeClient(BinanceTrade):
             if state['fillComplete']:
                 break
         state['balance'].update({'quoteDifference': state['balance']['tradesTotal'] - state['balance']['orderTotal']})
+        # if order partially filled and trades are exxhausted => remAmount and remTotal are present in state 
+        # to update the order amount an total fields in cache
         return  state
 
 class PaperTradeManager:
