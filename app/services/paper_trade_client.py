@@ -21,7 +21,7 @@ class PaperTradeClient(BinanceTrade):
 
     def remove_order(self, order_id: str):
         self.cached_data['orders'] = [
-            order for order in self.cached_data['orders'] if str(order['_id']) != order_id]
+            order for order in self.cached_data['orders'] if order['_id'] != order_id]
         
     def update_order(self, order_id,update: dict):
         for order in self.cached_data['orders']:
@@ -34,12 +34,12 @@ class PaperTradeClient(BinanceTrade):
     def get_trades(self) -> List[dict]:
         return self.cached_data['trades']
 
-    def add_trade(self, trade):
-        self.cached_data['trades'].append(trade)
+    def add_trades(self, trades: List):
+        self.cached_data['trades'].extend(trades)
 
     def remove_trade(self, trade_id):
         self.cached_data['trades'] = [
-            trade for trade in self.cached_data['trades'] if str(trade['_id']) != trade_id]
+            trade for trade in self.cached_data['trades'] if trade['_id'] != trade_id]
 
     def fill_cached_data(self, orders=[], trades=[]):
         self.cached_data['trades'] = trades
@@ -76,19 +76,18 @@ class PaperTradeClient(BinanceTrade):
             }
         }
 
-        price_match = self.is_price_relevant(order=order)
-        if not price_match['isRelevant']:
-            state['latestTradeId'] = price_match['latestTradeId']
-            state['searchExhausted'] =True
-            return state
+        # price_match = self.is_price_relevant(order=order)
+        # if not price_match['isRelevant']:
+        #     state['latestTradeId'] = price_match['latestTradeId']
+        #     state['searchExhausted'] =True
+        #     return state
 
         while not state['fillComplete'] and not state['searchExhausted']:
         
             hist_trades = self.client.get_historical_trades(
                 symbol='BTCUSDT', fromId=state['latestTradeId'], limit=1000)
-            
             # Exit loop if no more trades
-            if not len(hist_trades) or len(hist_trades) < 500:
+            if not len(hist_trades) :
                 state['searchExhausted'] = True
                 break
 
@@ -98,7 +97,6 @@ class PaperTradeClient(BinanceTrade):
                 key=lambda x: Decimal(x['price']), 
                 reverse=(order['side'] == 'sell')
             )
-            print(f"sorted: {sorted_trades[0]['price']}->{sorted_trades[-1]['price']} ==== {order['price']}")
             # Filter trades based on side and price
             if order['side'] == 'buy':
                 filtered_trades = [

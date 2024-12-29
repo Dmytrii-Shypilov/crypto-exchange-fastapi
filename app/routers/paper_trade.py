@@ -29,52 +29,78 @@ paper_trade_router = APIRouter(
 
 @paper_trade_router.websocket('/stream/{user_id}')
 async def paper_trade_stream(websocket: WebSocket, user_id: str):
-    if user_id in active_connections:
-        # await websocket.close(code=4001)
-        raise HTTPException(status_code=400, detail="WebSocket connection already exists for this user.")
-    
-    await websocket.accept()
-    active_connections[user_id] = websocket
-    trader = paper_trader.get_client(user_id)
+    try:
+        if user_id in active_connections:
+            # await websocket.close(code=4001)
+            raise HTTPException(status_code=400, detail="WebSocket connection already exists for this user.")
+        
+        await websocket.accept()
+        active_connections[user_id] = websocket
+        # set trader with its unique cache instance for the current user
+        trader = paper_trader.get_client(user_id)
 
-    orders_collection = get_collection('orders')
-    trades_collection = get_collection('trades')
+        # connect to the db orders/trades collections
+        orders_collection = get_collection('orders')
+        trades_collection = get_collection('trades')
 
-    # fetch orders from db and fill the cache
-    db_orders = await orders_collection.find({'owner': user_id}).to_list(length=None)
-    trader.fill_cached_data(trades=[], orders=db_orders)
-   
-    
-    # check if there are orders available
-    if not len(trader.cached_data['orders']):
-        print('NO ORDERS')
-        await asyncio.sleep(30)
+        # fetch orders from db and fill the cache (Initial one-time fetch)
+        db_orders = await orders_collection.find({'owner': user_id}).to_list(length=None)
+        trader.fill_cached_data(trades=[], orders=db_orders)
 
-    for order in trader.cached_data['orders']:
-        if order['side'] == 'limit':
-            print('limit')
-            result = trader.fill_the_limit_order(order=order)
-            if result['fillComplete']:
-                # remove order from cache and db (check the method!)
-                trader.remove_order(order)
-                # from db as well !!!
-                # check this method!
-                trader.add_trade(result['myTrades'])
-            else:
-                # update order if partially filled
-                update = {'amount': result['remAmount'], 'total': result['remTotal'], 'latestTradeId': result['latestTradeId']}
-                order.update(update)
-                trader.add_trade(result['myTrades'])
-                # update for db as well !!!
+        # start loop where cache is always checked for the present orders to be filled
+        while True:          
+            # check if there are orders available for check
+            if not len(trader.cached_data['orders']):
+                print('NO ORDERS')
+                await asyncio.sleep(5)
+                # start new cycle if there are no orders found
+                continue
 
-    # except WebSocketDisconnect:
-    #     del active_connections[user_id]
-    #     print(f"User {user_id} disconnected")
-    #     await websocket.close()
-    # except Exception as e:
-    #     print(f"Error: {e}")
-    #     del active_connections[user_id]
-    #     await websocket.close()
+            # print(f"CACHED ORDERS: {trader.cached_data['orders']}")
+            # await asyncio.sleep(2)
+
+            for order in trader.cached_data['orders']:
+                order['pair'] = order['pair'].replace('/', '')
+                # check if the order's type is 'limit'
+                if order['type'] == 'Limit':
+                    print('Limit')
+                    result = trader.fill_the_limit_order(order=order)
+
+                    # Convert all Decimal values to float before inserting
+                    if len(result['myTrades']):
+                        for trade in result['myTrades']:
+                            trade['price'] = float(trade['price'])
+                            trade['amount'] = float(trade['amount'])
+                            trade['total'] = float(trade['total'])
+
+
+
+                    if result['fillComplete']:
+                        # remove order from cache and db 
+                        trader.remove_order(order_id=order['_id'])
+                        await orders_collection.find_one_and_delete({'_id': order['_id']})
+                        # add trades to cache and db
+                        trader.add_trades(result['myTrades'])
+                        await trades_collection.insert_many(result['myTrades'])
+                    elif not result['fillComplete'] and len(result['myTrades']):
+                        # update order if partially filled
+                        update = {'amount': str(result['remAmount']), 'total': str(result['remTotal']), 'latestTradeId': result['latestTradeId']}
+                        # update order for cache and db
+                        order.update(update)
+                        await orders_collection.find_one_and_update({'_id': order['_id']}, {'$set': update})
+                        # add trades to cache and d
+                        trader.add_trades(result['myTrades'])
+                        await trades_collection.insert_many(result['myTrades'])
+                    # print(order)            
+                    # print(result)
+    except WebSocketDisconnect:
+        del active_connections[user_id]
+        print(f"User {user_id} disconnected")
+        await websocket.close()
+    except Exception as e:
+        print(f"Error: {e}")
+        del active_connections[user_id]
+        await websocket.close()
 
 
 
