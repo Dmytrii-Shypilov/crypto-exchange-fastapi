@@ -143,13 +143,19 @@ def fill_the_limit_order( order: dict):
 async def hello():
     print('Hello')
      # price= 98472
-    lat_id = client.get_recent_trades(symbol='BTCUSDT')[0]['id']
-    price = Decimal('95200')
-    base = Decimal('0.23')
-    tot_quote = price * base
-    my_order_2 = {'orderTime': int((datetime.now() - timedelta(hours=10)).timestamp() * 1000), 'type': 'limit', 'pair': 'BTCUSDT',
-                    'side': 'buy', 'price': price, 'amount': base, 'total': tot_quote, 'latestTradeId': lat_id}
-    result = fill_the_limit_order(order=my_order_2)
+    time1= int((datetime.now() - timedelta(hours=1)).timestamp() * 1000)
+    time2 = int(datetime.now().timestamp() * 1000)
+    period = client.KLINE_INTERVAL_15MINUTE
+    result = client.get_ticker(symbol='LUNCUSDT')
+
+    return result
+    # lat_id = client.get_recent_trades(symbol='BTCUSDT')[0]['id']
+    # price = Decimal('95800')
+    # base = Decimal('0.23')
+    # tot_quote = price * base
+    # my_order_2 = {'orderTime': int((datetime.now() - timedelta(hours=10)).timestamp() * 1000), 'type': 'limit', 'pair': 'BTCUSDT',
+    #                 'side': 'buy', 'price': price, 'amount': base, 'total': tot_quote, 'latestTradeId': lat_id}
+    # result = fill_the_limit_order(order=my_order_2)
     return result
     
 

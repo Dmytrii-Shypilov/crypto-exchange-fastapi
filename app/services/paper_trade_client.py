@@ -57,8 +57,7 @@ class PaperTradeClient(BinanceTrade):
             filtered_klines = [kline for kline in all_klines_since_order if Decimal(kline[3]) <= Decimal(order['price'])] 
         rec_trades = self.client.get_recent_trades(symbol=order['pair'])
         return {'isRelevant': bool(len(filtered_klines)), 'latestTradeId': int(rec_trades[0]['id']) - 1000 } 
-        
-    
+
     def fill_the_limit_order(self, order: dict):
         state = {
             'side': order['side'],
@@ -85,7 +84,7 @@ class PaperTradeClient(BinanceTrade):
         while not state['fillComplete'] and not state['searchExhausted']:
         
             hist_trades = self.client.get_historical_trades(
-                symbol='BTCUSDT', fromId=state['latestTradeId'], limit=1000)
+                symbol=order['pair'], fromId=state['latestTradeId'], limit=1000)
             # Exit loop if no more trades
             if not len(hist_trades) :
                 state['searchExhausted'] = True
@@ -126,29 +125,29 @@ class PaperTradeClient(BinanceTrade):
                     # PArtial trade match
                 
                     state['remAmount'] -= trade_amount
-                    state['remTotal'] -= trade_total
+                    state['remTotal'] = Decimal(order['price']) * state['remAmount']
                     state['myTrades'].append({
                         'pair': order['pair'],
                         'orderTime': order['orderTime'],
                         'type': order['type'],
                         'side': order['side'],
                         'executed': int(datetime.now().timestamp() * 1000),
-                        'price': trade_price,
+                        'price': order['price'],
                         'amount': trade_amount,
-                        'total': trade_total,
+                        'total': Decimal(order['price']) * trade_amount,
                     })
-                    state['balance']['tradesTotal'] += trade_total
+                    state['balance']['tradesTotal'] += Decimal(order['price']) * trade_amount
                     state['balance']['tradesAmount'] += trade_amount
                 else:
                     # Full trade match if remAmount(order amount) < Trade Amount
-                    partial_trade_total = state['remAmount'] * trade_price
+                    partial_trade_total = state['remAmount'] * Decimal(order['price'])
                     state['myTrades'].append({
                         'pair': order['pair'],
                         'orderTime': order['orderTime'],
                         'type': order['type'],
                         'side': order['side'],
                         'executed': int(datetime.now().timestamp() * 1000),
-                        'price': trade_price,
+                        'price': order['price'],
                         'amount': state['remAmount'],
                         'total': partial_trade_total,
                     })
@@ -167,6 +166,9 @@ class PaperTradeClient(BinanceTrade):
         # if order partially filled and trades are exxhausted => remAmount and remTotal are present in state 
         # to update the order amount an total fields in cache
         return  state
+  
+    
+    
 
 class PaperTradeManager:
     def __init__(self, client: Client):
@@ -198,3 +200,112 @@ paper_trader = PaperTradeManager(client=client)
 # The ask side contains sell orders, sorted from lowest price to highest.
 # Partial Fills: If the market offers a smaller quantity at your limit price, only part of your 
 # order will be executed. The remainder will stay in the order book until it's matched or canceled.
+
+# def fill_the_limit_order(self, order: dict):
+#         state = {
+#             'side': order['side'],
+#             'searchExhausted': False,
+#             'fillComplete': False,
+#             'latestTradeId': order['latestTradeId'],
+#             'myTrades': [],
+#             'remAmount': Decimal(order['amount']),
+#             'remTotal': Decimal(order['total']),
+#             'balance': {
+#                 'orderTotal': Decimal(order['total']),
+#                 'orderAmount': Decimal(order['amount']),
+#                 'tradesTotal':Decimal('0'),
+#                 'tradesAmount': Decimal('0'),
+#             }
+#         }
+
+#         # price_match = self.is_price_relevant(order=order)
+#         # if not price_match['isRelevant']:
+#         #     state['latestTradeId'] = price_match['latestTradeId']
+#         #     state['searchExhausted'] =True
+#         #     return state
+
+#         while not state['fillComplete'] and not state['searchExhausted']:
+        
+#             hist_trades = self.client.get_historical_trades(
+#                 symbol='BTCUSDT', fromId=state['latestTradeId'], limit=1000)
+#             # Exit loop if no more trades
+#             if not len(hist_trades) :
+#                 state['searchExhausted'] = True
+#                 break
+
+#             # Sort trades by price (ascending for buy, descending for sell)
+#             sorted_trades = sorted(
+#                 hist_trades, 
+#                 key=lambda x: Decimal(x['price']), 
+#                 reverse=(order['side'] == 'sell')
+#             )
+#             # Filter trades based on side and price
+#             if order['side'] == 'buy':
+#                 filtered_trades = [
+#                     trade for trade in sorted_trades 
+#                     if not trade['isBuyerMaker'] and Decimal(trade['price']) <= Decimal(order['price'])
+#                 ]
+#             else:  # sell
+#                 filtered_trades = [
+#                     trade for trade in sorted_trades 
+#                     if trade['isBuyerMaker'] and Decimal(trade['price']) >= Decimal(order['price'])
+#                 ]
+
+#             # Update latestTradeId to the highest ID in current batch
+#             state['latestTradeId'] = int(hist_trades[-1]['id']) + 1
+#             print(f'Id: {state['latestTradeId']} histTrLen: {len(hist_trades)} filterdeLen: {len(filtered_trades)}' )
+#             # Skip to next iteration if no matching trades
+#             if not filtered_trades:
+#                 continue
+
+#             # Process filtered trades
+#             for trade in filtered_trades:
+#                 trade_price = Decimal(trade['price'])
+#                 trade_amount = Decimal(trade['qty'])
+#                 trade_total = trade_price * trade_amount
+
+#                 if state['remAmount'] >= trade_amount:
+#                     # PArtial trade match
+                
+#                     state['remAmount'] -= trade_amount
+#                     state['remTotal'] -= trade_total
+#                     state['myTrades'].append({
+#                         'pair': order['pair'],
+#                         'orderTime': order['orderTime'],
+#                         'type': order['type'],
+#                         'side': order['side'],
+#                         'executed': int(datetime.now().timestamp() * 1000),
+#                         'price': trade_price,
+#                         'amount': trade_amount,
+#                         'total': trade_total,
+#                     })
+#                     state['balance']['tradesTotal'] += trade_total
+#                     state['balance']['tradesAmount'] += trade_amount
+#                 else:
+#                     # Full trade match if remAmount(order amount) < Trade Amount
+#                     partial_trade_total = state['remAmount'] * trade_price
+#                     state['myTrades'].append({
+#                         'pair': order['pair'],
+#                         'orderTime': order['orderTime'],
+#                         'type': order['type'],
+#                         'side': order['side'],
+#                         'executed': int(datetime.now().timestamp() * 1000),
+#                         'price': trade_price,
+#                         'amount': state['remAmount'],
+#                         'total': partial_trade_total,
+#                     })
+#                     state['balance']['tradesAmount'] += state['remAmount']
+#                     state['balance']['tradesTotal'] += partial_trade_total
+#                     state['remAmount'] = Decimal(0)
+#                     state['remTotal'] = Decimal(0)
+#                     state['fillComplete'] = True
+                    
+#                     break
+
+#             # Stop processing if fully filled
+#             if state['fillComplete']:
+#                 break
+#         state['balance'].update({'quoteDifference': state['balance']['tradesTotal'] - state['balance']['orderTotal']})
+#         # if order partially filled and trades are exxhausted => remAmount and remTotal are present in state 
+#         # to update the order amount an total fields in cache
+#         return  state
